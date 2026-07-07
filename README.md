@@ -56,3 +56,6 @@ python3 -m pip install numpy scipy matplotlib pillow numba
 sudo pacman -S --needed python python-pip tk
 python -m pip install numpy scipy matplotlib pillow numba
 ```
+
+IPT 120C && IDK.ipt or any stl can be loaded in the program using the import stl configuration
+
