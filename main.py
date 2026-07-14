@@ -6,6 +6,7 @@ import math
 import traceback
 import tkinter as tk
 from tkinter import ttk
+from PIL import Image, ImageTk
 
 DEBUG = True
 def dbg(msg):
@@ -13,8 +14,18 @@ def dbg(msg):
         print(f"[DarkWingCFD][{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+LOGO_FILENAME = "pfp.png"
+
+
+def resource_path(filename):
+    """Resolve a bundled asset path that works both when running from
+    source and when frozen into a single-file executable (PyInstaller)."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, filename)
+
+
 class LinearLoadingBar:
-    """Simple horizontal progress bar."""
+    """horizontal progress bar."""
     def __init__(self, master, bg, panel, accent, border, width=460, height=22):
         self.width  = width
         self.height = height
@@ -40,93 +51,15 @@ class LinearLoadingBar:
         self.canvas.update_idletasks()
 
 
-def _lerp_color_hex(c1, c2, t):
-    """Blend two '#rrggbb' colors by factor t (0..1) -> '#rrggbb'."""
-    def to_rgb(h):
-        h = h.lstrip("#")
-        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-    r1, g1, b1 = to_rgb(c1)
-    r2, g2, b2 = to_rgb(c2)
-    r = int(r1 + (r2 - r1) * t)
-    g = int(g1 + (g2 - g1) * t)
-    b = int(b1 + (b2 - b1) * t)
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
-def draw_eagle_logo(canvas, cx, cy, scale, fill, outline="", panel_color=None, accent=None):
-    """RQ-170/B-21-style stealth-jet emblem: elongated delta/lambda silhouette
-    with a swept nose, sharp delta wings, canards, twin canted tails, diamond
-    intakes, and a bubble canopy — ported from the PFP generator's
-    draw_stealth_jet, translated to tkinter Canvas primitives (no gradient
-    support, so the metallic sweep is approximated with a flat `fill` tone
-    and a lighter canopy highlight instead of a full gradient composite)."""
-    ids = []
-    panel_color = panel_color or "#050b12"
-    seam_color = accent or panel_color
-
-    def scaled(points):
-        coords = []
-        for (x, y) in points:
-            coords.append(cx + x * scale)
-            coords.append(cy + y * scale)
-        return coords
-
-    # ── elongated delta/lambda fuselage+wing planform (nose, canards,
-    #    delta wingtips, notched trailing edge, twin tail-plane tips) ──
-    wing_pts = [
-        (0.00, -1.72),   # nose tip (delta-style, long sharp taper)
-        (0.14, -1.24),   # delta leading-edge point
-        (0.40, -0.80),   # canard tip
-        (0.27, -0.68),   # canard root / shoulder
-        (1.35, 0.05),    # right wingtip (long sharp sweep)
-        (1.05, 0.22),    # trailing edge notch (out)
-        (0.78, 0.10),    # trailing edge notch (in)
-        (0.62, 0.72),    # right tail-plane tip
-        (0.34, 0.55),    # inner notch
-        (0.00, 0.95),    # tail centre point
-        (-0.34, 0.55),   # inner notch (mirrored)
-        (-0.62, 0.72),   # left tail-plane tip
-        (-0.78, 0.10),   # trailing edge notch (in, mirrored)
-        (-1.05, 0.22),   # trailing edge notch (out, mirrored)
-        (-1.35, 0.05),   # left wingtip
-        (-0.27, -0.68),  # canard root / shoulder (mirrored)
-        (-0.40, -0.80),  # canard tip (mirrored)
-        (-0.14, -1.24),  # delta leading-edge point (mirrored)
-    ]
-    ids.append(canvas.create_polygon(scaled(wing_pts), fill=fill, outline=outline, smooth=False))
-
-    # ── twin canted tail fins (small dark triangles near the tail) ──
-    tail_r = [(0.30, 0.30), (0.62, 0.50), (0.46, 0.62), (0.28, 0.46)]
-    tail_l = [(-x, y) for (x, y) in tail_r]
-    for pts in (tail_r, tail_l):
-        ids.append(canvas.create_polygon(scaled(pts), fill=panel_color, outline=""))
-
-    # ── twin diamond intakes on the body (either side of the canards) ──
-    intake_r = [(0.11, -0.28), (0.26, -0.06), (0.11, 0.12), (0.04, -0.06)]
-    intake_l = [(-x, y) for (x, y) in intake_r]
-    for pts in (intake_r, intake_l):
-        ids.append(canvas.create_polygon(scaled(pts), fill=panel_color, outline=""))
-
-    # ── bubble-style cockpit canopy (rounded glass dome on the nose) ──
-    canopy_bbox = scaled([(-0.09, -1.30), (0.09, -0.80)])
-    ids.append(canvas.create_oval(*canopy_bbox, fill=panel_color, outline=""))
-    # glass highlight streak (lighter blend toward white, offset toward the light)
-    highlight_color = _lerp_color_hex(fill if fill.startswith("#") else "#dfeaf5", "#ffffff", 0.5)
-    hi_bbox = scaled([(-0.05, -1.24), (0.008, -0.96)])
-    ids.append(canvas.create_oval(*hi_bbox, fill=highlight_color, outline=""))
-
-    # ── thin panel/centerline seams for extra "stealth" detail ──
-    seam_lines = [
-        [(0.00, -1.72), (0.00, 0.95)],
-        [(0.14, -1.24), (0.40, -0.80)],
-        [(0.40, -0.80), (0.27, -0.68)],
-        [(-0.14, -1.24), (-0.40, -0.80)],
-        [(-0.40, -0.80), (-0.27, -0.68)],
-    ]
-    for pts in seam_lines:
-        ids.append(canvas.create_line(scaled(pts), fill=seam_color, width=1))
-
-    return ids
+def load_logo_image(size, filename=LOGO_FILENAME):
+    path = resource_path(filename)
+    try:
+        img = Image.open(path).convert("RGBA")
+        img = img.resize((size, size), Image.LANCZOS)
+        return ImageTk.PhotoImage(img)
+    except Exception as e:
+        dbg(f"could not load logo image '{path}': {e}")
+        return None
 
 
 def build_loading_screen(root, BG, PANEL, ACCENT, BORDER, MUTED):
@@ -137,8 +70,13 @@ def build_loading_screen(root, BG, PANEL, ACCENT, BORDER, MUTED):
     logo_canvas = tk.Canvas(loading_frame, width=logo_size, height=logo_size,
                              bg=BG, highlightthickness=0)
     logo_canvas.pack(pady=(0, 6))
-    draw_eagle_logo(logo_canvas, cx=logo_size / 2, cy=logo_size / 2,
-                     scale=logo_size * 0.20, fill=ACCENT)
+
+    logo_image = load_logo_image(logo_size)
+    if logo_image is not None:
+        # Keep a reference on the canvas itself so it isn't garbage
+        # collected once this function returns.
+        logo_canvas.image = logo_image
+        logo_canvas.create_image(logo_size / 2, logo_size / 2, image=logo_image)
 
     tk.Label(loading_frame, text="◈ DARK WING CFD ◈", fg=ACCENT, bg=BG,
              font=("Helvetica", 16, "bold")).pack(pady=(0, 10))
